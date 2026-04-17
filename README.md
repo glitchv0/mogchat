@@ -63,7 +63,7 @@ Select a theme from the settings dropdown. The live preview panel shows how mess
 
 ## Screenshots
 
-**Single conversation**
+**Conversation History**
 
 <p>
   <img src="screenshots/convo.PNG" alt="Single conversation" width="360">
