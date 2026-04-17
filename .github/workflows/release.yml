@@ -1,0 +1,33 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create release zip
+        run: |
+          mkdir -p mogchat
+          cp -r lib/ sounds/ mogchat.lua mogchat/
+          zip -r mogchat-${{ steps.version.outputs.version }}.zip mogchat/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: MogChat v${{ steps.version.outputs.version }}
+          generate_release_notes: true
+          files: mogchat-${{ steps.version.outputs.version }}.zip

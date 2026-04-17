@@ -1,0 +1,9 @@
+# Ashita generated settings (per-character)
+settings/
+
+# Superpowers brainstorming artifacts
+.superpowers/
+
+# OS files
+Thumbs.db
+.DS_Store
