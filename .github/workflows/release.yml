@@ -1,9 +1,9 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  pull_request:
+    types: [closed]
+    branches: [main]
 
 permissions:
   contents: write
@@ -11,13 +11,16 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Extract version from tag
+      - name: Extract version from mogchat.lua
         id: version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        run: |
+          version=$(grep "addon.version" mogchat.lua | head -1 | sed "s/.*'\(.*\)'.*/\1/")
+          echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Create release zip
         run: |
@@ -28,6 +31,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.version.outputs.version }}
           name: MogChat v${{ steps.version.outputs.version }}
           generate_release_notes: true
           files: mogchat-${{ steps.version.outputs.version }}.zip
