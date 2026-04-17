@@ -97,6 +97,30 @@ function history.delete_all()
     end);
 end
 
+-- List all saved conversation names for the current character
+-- Returns: sorted table of display names (derived from filenames)
+function history.list()
+    local dir = get_history_dir();
+    if (not dir) then return {}; end
+
+    local files = ashita.fs.get_dir(dir .. '\\', '.*.lua', true);
+    if (not files) then return {}; end
+
+    local names = {};
+    T(files):each(function(v)
+        if (v and #v > 0) then
+            -- Strip .lua extension
+            local name = v:gsub('%.lua$', '');
+            if (#name > 0) then
+                table.insert(names, name);
+            end
+        end
+    end);
+
+    table.sort(names, function(a, b) return a:lower() < b:lower(); end);
+    return names;
+end
+
 -- Save all active conversations
 function history.save_all(conversations_active, max_lines)
     for _, convo in pairs(conversations_active) do

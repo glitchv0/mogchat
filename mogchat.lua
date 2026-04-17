@@ -1,6 +1,6 @@
 addon.name      = 'MogChat';
 addon.author    = 'CatsEyeXI';
-addon.version   = '0.4.0';
+addon.version   = '0.5.0';
 addon.desc      = 'Instant messenger for FFXI tells';
 addon.link      = '';
 
@@ -44,6 +44,22 @@ end);
 -- Track whether history has been loaded for a conversation
 local history_loaded = {};
 
+-- Reopen a saved conversation (loads history, shows window)
+local function reopen_conversation(name)
+    local key = name:lower();
+    if (not history_loaded[key]) then
+        local msgs = history_lib.load(name, config.history.load_recent);
+        if (#msgs > 0) then
+            conversations.load_history(name, msgs);
+        end
+        history_loaded[key] = true;
+    end
+    local convo = conversations.get(name);
+    convo.is_open[1] = true;
+    convo.unread = 0;
+    convo.scroll_to_bottom = true;
+end
+
 -- Active theme (deep copy so edits don't mutate presets)
 local active_theme = themes.copy(themes.presets[config.theme_name] or themes.presets['FFXI Gold']);
 
@@ -67,6 +83,14 @@ local ui = {
     theme_index = { 0 },
     opacity = { 0.92 },
 };
+
+-- Cached list of saved conversation names (from history files)
+local convo_list_cache = {};
+local convo_filter = { '' };
+
+local function refresh_convo_list()
+    convo_list_cache = history_lib.list();
+end
 
 -- Sync UI refs from config
 local function sync_ui_from_config()
@@ -96,6 +120,8 @@ local function render_config_window()
 
     imgui.SetNextWindowSize({ 360, 580 }, ImGuiCond_FirstUseEver);
     if (imgui.Begin('MogChat Settings###mogchat_config', config_open)) then
+      if (imgui.BeginTabBar('##mogchat_cfg_tabs')) then
+        if (imgui.BeginTabItem('Settings')) then
 
         -- Display Mode
         imgui.Text('Display Mode');
@@ -106,119 +132,175 @@ local function render_config_window()
         end
 
         imgui.Separator();
-        imgui.Text('Theme');
-
-        local preset_str = themes.get_preset_combo_str();
-        imgui.PushItemWidth(160);
-        if (imgui.Combo('##theme', ui.theme_index, preset_str, #themes.preset_names)) then
-            config.theme_name = themes.get_preset_name(ui.theme_index[1]);
-            active_theme = themes.copy(themes.presets[config.theme_name]);
-            active_theme.window_bg[4] = ui.opacity[1];
-            changed = true;
-        end
-        imgui.PopItemWidth();
-
-        imgui.PushItemWidth(160);
-        if (imgui.SliderFloat('Opacity', ui.opacity, 0.3, 1.0, '%.2f')) then
-            config.opacity = ui.opacity[1];
-            active_theme.window_bg[4] = ui.opacity[1];
-            changed = true;
-        end
-        imgui.PopItemWidth();
-
-        -- Live preview panel
-        imgui.Spacing();
-        imgui.BeginChild('##theme_preview', { 0, 80 }, true);
-        imgui.TextColored(active_theme.msg_timestamp, '[14:32]');
-        imgui.SameLine();
-        imgui.TextColored(active_theme.msg_incoming, 'Kupostein: Hey, are you free for Dynamis?');
-        imgui.TextColored(active_theme.msg_timestamp, '[14:32]');
-        imgui.SameLine();
-        imgui.TextColored(active_theme.msg_outgoing, 'You: Sure, let me grab my gear!');
-        imgui.TextColored(active_theme.msg_timestamp, '[14:33]');
-        imgui.SameLine();
-        imgui.TextColored(active_theme.msg_incoming, 'Kupostein: Great, meet at Whitegate');
-        imgui.EndChild();
-
-        imgui.Separator();
-        imgui.Text('Notifications');
-
-        if (imgui.Checkbox('Sound alert', ui.sound)) then
-            config.notifications.sound = ui.sound[1];
-            changed = true;
-        end
-
-        -- Sound picker (only show when sound is enabled)
-        if (ui.sound[1]) then
-            imgui.Indent(20);
-            local sound_list = notifications.get_sound_list();
-            local combo_str = notifications.get_sound_combo_str();
+        if (imgui.CollapsingHeader('Theme', ImGuiTreeNodeFlags_DefaultOpen)) then
+            local preset_str = themes.get_preset_combo_str();
             imgui.PushItemWidth(160);
-            if (imgui.Combo('##sound_file', ui.sound_index, combo_str, #sound_list)) then
-                config.notifications.sound_file = notifications.get_sound_filename(ui.sound_index[1]);
+            if (imgui.Combo('##theme', ui.theme_index, preset_str, #themes.preset_names)) then
+                config.theme_name = themes.get_preset_name(ui.theme_index[1]);
+                active_theme = themes.copy(themes.presets[config.theme_name]);
+                active_theme.window_bg[4] = ui.opacity[1];
                 changed = true;
             end
             imgui.PopItemWidth();
-            imgui.SameLine();
-            if (imgui.Button('Preview##sound')) then
-                notifications.play_sound_file(notifications.get_sound_filename(ui.sound_index[1]));
+
+            imgui.PushItemWidth(160);
+            if (imgui.SliderFloat('Opacity', ui.opacity, 0.3, 1.0, '%.2f')) then
+                config.opacity = ui.opacity[1];
+                active_theme.window_bg[4] = ui.opacity[1];
+                changed = true;
             end
+            imgui.PopItemWidth();
+
+            -- Live preview panel
+            imgui.Spacing();
+            imgui.BeginChild('##theme_preview', { 0, 80 }, true);
+            imgui.TextColored(active_theme.msg_timestamp, '[14:32]');
             imgui.SameLine();
-            if (imgui.Button('Rescan##sound')) then
-                notifications.rescan_sounds();
-                ui.sound_index[1] = notifications.get_sound_index(config.notifications.sound_file);
+            imgui.TextColored(active_theme.msg_incoming, 'Kupostein: Hey, are you free for Dynamis?');
+            imgui.TextColored(active_theme.msg_timestamp, '[14:32]');
+            imgui.SameLine();
+            imgui.TextColored(active_theme.msg_outgoing, 'You: Sure, let me grab my gear!');
+            imgui.TextColored(active_theme.msg_timestamp, '[14:33]');
+            imgui.SameLine();
+            imgui.TextColored(active_theme.msg_incoming, 'Kupostein: Great, meet at Whitegate');
+            imgui.EndChild();
+        end
+
+        if (imgui.CollapsingHeader('Notifications', ImGuiTreeNodeFlags_DefaultOpen)) then
+            if (imgui.Checkbox('Sound alert', ui.sound)) then
+                config.notifications.sound = ui.sound[1];
+                changed = true;
             end
-            imgui.Unindent(20);
+
+            -- Sound picker (only show when sound is enabled)
+            if (ui.sound[1]) then
+                imgui.Indent(20);
+                local sound_list = notifications.get_sound_list();
+                local combo_str = notifications.get_sound_combo_str();
+                imgui.PushItemWidth(160);
+                if (imgui.Combo('##sound_file', ui.sound_index, combo_str, #sound_list)) then
+                    config.notifications.sound_file = notifications.get_sound_filename(ui.sound_index[1]);
+                    changed = true;
+                end
+                imgui.PopItemWidth();
+                imgui.SameLine();
+                if (imgui.Button('Preview##sound')) then
+                    notifications.play_sound_file(notifications.get_sound_filename(ui.sound_index[1]));
+                end
+                imgui.SameLine();
+                if (imgui.Button('Rescan##sound')) then
+                    notifications.rescan_sounds();
+                    ui.sound_index[1] = notifications.get_sound_index(config.notifications.sound_file);
+                end
+                imgui.Unindent(20);
+            end
+
+            if (imgui.Checkbox('Window flash', ui.flash)) then
+                config.notifications.flash = ui.flash[1];
+                changed = true;
+            end
+
+            if (imgui.Checkbox('Show in chatlog', ui.chatlog_echo)) then
+                config.notifications.chatlog_echo = ui.chatlog_echo[1];
+                changed = true;
+            end
         end
 
-        if (imgui.Checkbox('Window flash', ui.flash)) then
-            config.notifications.flash = ui.flash[1];
-            changed = true;
+        if (imgui.CollapsingHeader('History')) then
+            imgui.PushItemWidth(120);
+            if (imgui.InputInt('Max lines stored', ui.max_lines)) then
+                if (ui.max_lines[1] < 10) then ui.max_lines[1] = 10; end
+                if (ui.max_lines[1] > 10000) then ui.max_lines[1] = 10000; end
+                config.history.max_lines = ui.max_lines[1];
+                changed = true;
+            end
+
+            if (imgui.InputInt('Lines to load', ui.load_recent)) then
+                if (ui.load_recent[1] < 10) then ui.load_recent[1] = 10; end
+                if (ui.load_recent[1] > 1000) then ui.load_recent[1] = 1000; end
+                config.history.load_recent = ui.load_recent[1];
+                changed = true;
+            end
+            imgui.PopItemWidth();
         end
 
-        if (imgui.Checkbox('Show in chatlog', ui.chatlog_echo)) then
-            config.notifications.chatlog_echo = ui.chatlog_echo[1];
-            changed = true;
+        if (imgui.CollapsingHeader('Window Defaults')) then
+            imgui.PushItemWidth(120);
+            if (imgui.InputInt('Width', ui.window_width)) then
+                if (ui.window_width[1] < 200) then ui.window_width[1] = 200; end
+                if (ui.window_width[1] > 800) then ui.window_width[1] = 800; end
+                config.window.default_width = ui.window_width[1];
+                changed = true;
+            end
+
+            if (imgui.InputInt('Height', ui.window_height)) then
+                if (ui.window_height[1] < 150) then ui.window_height[1] = 150; end
+                if (ui.window_height[1] > 800) then ui.window_height[1] = 800; end
+                config.window.default_height = ui.window_height[1];
+                changed = true;
+            end
+            imgui.PopItemWidth();
         end
 
-        imgui.Separator();
-        imgui.Text('History');
-
-        imgui.PushItemWidth(120);
-        if (imgui.InputInt('Max lines stored', ui.max_lines)) then
-            if (ui.max_lines[1] < 10) then ui.max_lines[1] = 10; end
-            if (ui.max_lines[1] > 10000) then ui.max_lines[1] = 10000; end
-            config.history.max_lines = ui.max_lines[1];
-            changed = true;
+            imgui.EndTabItem();
         end
 
-        if (imgui.InputInt('Lines to load', ui.load_recent)) then
-            if (ui.load_recent[1] < 10) then ui.load_recent[1] = 10; end
-            if (ui.load_recent[1] > 1000) then ui.load_recent[1] = 1000; end
-            config.history.load_recent = ui.load_recent[1];
-            changed = true;
+        if (imgui.BeginTabItem('Conversations')) then
+            imgui.PushItemWidth(180);
+            imgui.InputText('Filter##convo_filter', convo_filter, 64, 0);
+            imgui.PopItemWidth();
+            imgui.SameLine();
+            if (imgui.Button('Refresh##convo_refresh')) then
+                refresh_convo_list();
+            end
+
+            imgui.BeginChild('##convo_list', { 0, 0 }, true);
+            local filter = convo_filter[1]:lower();
+            local active = conversations.get_all();
+            local shown = 0;
+            for _, name in ipairs(convo_list_cache) do
+                if (filter == '' or name:lower():find(filter, 1, true)) then
+                    shown = shown + 1;
+                    local key = name:lower();
+                    local convo = active[key];
+                    local is_open = convo and convo.is_open[1];
+
+                    if (is_open) then
+                        imgui.TextColored({ 0.5, 1.0, 0.5, 1.0 }, '[open]');
+                    else
+                        imgui.TextColored({ 0.6, 0.6, 0.6, 1.0 }, '      ');
+                    end
+                    imgui.SameLine();
+                    imgui.Text(name);
+                    imgui.SameLine(180);
+
+                    if (is_open) then
+                        if (imgui.Button(('Close##close_%s'):fmt(key))) then
+                            conversations.close(name);
+                        end
+                    else
+                        if (imgui.Button(('Open##open_%s'):fmt(key))) then
+                            reopen_conversation(name);
+                        end
+                    end
+                    imgui.SameLine();
+                    if (imgui.Button(('Clear##clear_%s'):fmt(key))) then
+                        conversations.clear(name);
+                        history_lib.delete(name);
+                        history_loaded[key] = nil;
+                        refresh_convo_list();
+                    end
+                end
+            end
+            if (shown == 0) then
+                imgui.TextColored({ 0.6, 0.6, 0.6, 1.0 }, '(no saved conversations)');
+            end
+            imgui.EndChild();
+            imgui.EndTabItem();
         end
-        imgui.PopItemWidth();
 
-        imgui.Separator();
-        imgui.Text('Window Defaults');
-
-        imgui.PushItemWidth(120);
-        if (imgui.InputInt('Width', ui.window_width)) then
-            if (ui.window_width[1] < 200) then ui.window_width[1] = 200; end
-            if (ui.window_width[1] > 800) then ui.window_width[1] = 800; end
-            config.window.default_width = ui.window_width[1];
-            changed = true;
-        end
-
-        if (imgui.InputInt('Height', ui.window_height)) then
-            if (ui.window_height[1] < 150) then ui.window_height[1] = 150; end
-            if (ui.window_height[1] > 800) then ui.window_height[1] = 800; end
-            config.window.default_height = ui.window_height[1];
-            changed = true;
-        end
-        imgui.PopItemWidth();
-
+        imgui.EndTabBar();
+      end
     end
     imgui.End();
 
@@ -239,6 +321,7 @@ ashita.events.register('command', 'command_cb', function(e)
         config_open[1] = not config_open[1];
         if (config_open[1]) then
             sync_ui_from_config();
+            refresh_convo_list();
         end
         return;
     end

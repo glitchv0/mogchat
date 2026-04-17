@@ -43,6 +43,7 @@ function conversations.add_message(name, text, direction)
     if (direction == 'in') then
         convo.unread = convo.unread + 1;
         convo.flash_until = os.clock() + 3.0;
+        convo.is_open[1] = true;
     end
 
     return convo;

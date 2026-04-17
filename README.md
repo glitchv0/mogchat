@@ -2,9 +2,7 @@
 
 An Ashita v4 addon for FFXI that provides an instant messenger-style interface for tells. Pop-up chat windows for each conversation, persistent history, customizable notifications, and themeable UI.
 
-<!-- Add screenshots here once you have them:
-![MogChat Screenshot](screenshots/mogchat-floating.png)
--->
+![MogChat conversation windows](screenshots/chats.PNG)
 
 ## Features
 
@@ -63,8 +61,14 @@ Select a theme from the settings dropdown. The live preview panel shows how mess
 
 ## Screenshots
 
-<!-- Replace these with actual screenshots -->
-*Screenshots coming soon - add them to the `screenshots/` folder*
+**Multiple floating conversations**
+![Floating chat windows](screenshots/chats.PNG)
+
+**Single conversation**
+![Single conversation](screenshots/convo.PNG)
+
+**Settings window**
+![Config window](screenshots/config.PNG)
 
 ## Issues / Feedback
 
