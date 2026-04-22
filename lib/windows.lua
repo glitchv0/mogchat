@@ -32,17 +32,17 @@ local function render_conversation_content(convo)
         imgui.SameLine();
 
         -- Sender + message with text wrapping
-        -- Use PushTextWrapPos instead of TextWrapped to avoid printf format injection
+        -- TextUnformatted bypasses printf parsing so '%' in user text renders literally
         if (msg.sender == 'You') then
             imgui.PushStyleColor(ImGuiCol_Text, COLOR_OUTGOING);
             imgui.PushTextWrapPos(0);
-            imgui.Text('You: ' .. msg.text);
+            imgui.TextUnformatted('You: ' .. msg.text);
             imgui.PopTextWrapPos();
             imgui.PopStyleColor();
         else
             imgui.PushStyleColor(ImGuiCol_Text, COLOR_INCOMING);
             imgui.PushTextWrapPos(0);
-            imgui.Text(msg.sender .. ': ' .. msg.text);
+            imgui.TextUnformatted(msg.sender .. ': ' .. msg.text);
             imgui.PopTextWrapPos();
             imgui.PopStyleColor();
         end

@@ -1,6 +1,6 @@
 addon.name      = 'MogChat';
 addon.author    = 'Nybs';
-addon.version   = '0.5.1';
+addon.version   = '0.5.2';
 addon.desc      = 'Instant messenger for FFXI tells';
 addon.link      = '';
 
